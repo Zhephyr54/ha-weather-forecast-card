@@ -132,11 +132,42 @@ export class WfcForecastChart extends LitElement {
     return this;
   }
 
+  public connectedCallback(): void {
+    super.connectedCallback();
+    window.visualViewport?.addEventListener(
+      "resize",
+      this._handleViewportScaleChange
+    );
+  }
+
   public disconnectedCallback(): void {
     super.disconnectedCallback();
+    window.visualViewport?.removeEventListener(
+      "resize",
+      this._handleViewportScaleChange
+    );
     this._chart?.destroy();
     this._chart = null;
   }
+
+  /**
+   * Pixel ratio the canvas backing store must use to stay sharp. `window.devicePixelRatio`
+   * does not change when the page is magnified through the viewport scale (pinch zoom for example),
+   * so the canvas bitmap would be rasterized at 1x and then stretched by the compositor,
+   * blurring lines and data labels.
+   * Folding `visualViewport.scale` in makes Chart.js rasterize at the visible resolution.
+   */
+  private _getEffectivePixelRatio(): number {
+    return window.devicePixelRatio * (window.visualViewport?.scale ?? 1);
+  }
+
+  private _handleViewportScaleChange = (): void => {
+    if (!this._chart) return;
+    const ratio = this._getEffectivePixelRatio();
+    if (this._chart.options.devicePixelRatio === ratio) return;
+    this._chart.options.devicePixelRatio = ratio;
+    this._chart.resize();
+  };
 
   protected firstUpdated(): void {
     if (this.config?.forecast?.default_chart_attribute) {
@@ -201,12 +232,12 @@ export class WfcForecastChart extends LitElement {
     return html`
       <div
         class="${classMap({
-          "wfc-forecast-chart-settings": true,
-          "has-selector": !!this.config.forecast?.show_attribute_selector,
-        })}"
+      "wfc-forecast-chart-settings": true,
+      "has-selector": !!this.config.forecast?.show_attribute_selector,
+    })}"
       >
         ${this.config.forecast?.show_attribute_selector
-          ? html`<span>${this._localizeSelectedAttribute()}</span>
+        ? html`<span>${this._localizeSelectedAttribute()}</span>
               <div class="wfc-forecast-chart-attribute-selector">
                 <ha-button
                   class="wfc-settings-toggle-button"
@@ -217,18 +248,18 @@ export class WfcForecastChart extends LitElement {
                 >
                   <ha-icon
                     .icon=${this._settingsOpen
-                      ? "mdi:close"
-                      : this._selectedAttribute ===
-                          "temperature_and_precipitation"
-                        ? "mdi:water-thermometer"
-                        : WEATHER_ATTRIBUTE_ICON_MAP[
-                            this
-                              ._selectedAttribute as keyof typeof WEATHER_ATTRIBUTE_ICON_MAP
-                          ]}
+            ? "mdi:close"
+            : this._selectedAttribute ===
+              "temperature_and_precipitation"
+              ? "mdi:water-thermometer"
+              : WEATHER_ATTRIBUTE_ICON_MAP[
+              this
+                ._selectedAttribute as keyof typeof WEATHER_ATTRIBUTE_ICON_MAP
+              ]}
                   ></ha-icon>
                 </ha-button>
               </div>`
-          : nothing}
+        : nothing}
         <wfc-chart-attribute-selector
           .open=${this._settingsOpen}
           .options=${this._getChartOptions()}
@@ -247,11 +278,11 @@ export class WfcForecastChart extends LitElement {
           class="wfc-scroll-container"
           style=${styleMap(scrollContainerStyle)}
           .actionHandler=${actionHandler({
-            hasHold: this.config.forecast_action?.hold_action !== undefined,
-            hasDoubleClick:
-              this.config.forecast_action?.double_tap_action !== undefined,
-            stopPropagation: true,
-          })}
+          hasHold: this.config.forecast_action?.hold_action !== undefined,
+          hasDoubleClick:
+            this.config.forecast_action?.double_tap_action !== undefined,
+          stopPropagation: true,
+        })}
           @pointerdown=${this._onPointerDown}
           @action=${this._onForecastAction}
         >
@@ -271,7 +302,7 @@ export class WfcForecastChart extends LitElement {
 
           <div class="wfc-forecast-chart-footer">
             ${forecast.map(
-              (item, index) => html`
+          (item, index) => html`
                 <div class="wfc-forecast-slot" data-index=${index}>
                   <wfc-forecast-info
                     .hass=${this.hass}
@@ -282,7 +313,7 @@ export class WfcForecastChart extends LitElement {
                   ></wfc-forecast-info>
                 </div>
               `
-            )}
+        )}
           </div>
         </div>
       </div>
@@ -376,6 +407,7 @@ export class WfcForecastChart extends LitElement {
     const baseOptions: ChartOptions = {
       responsive: true,
       maintainAspectRatio: false,
+      devicePixelRatio: this._getEffectivePixelRatio(),
       plugins: {
         datalabels: {
           font: {
@@ -929,7 +961,7 @@ export class WfcForecastChart extends LitElement {
 
     if (
       this.config.forecast_action?.hold_action?.action ===
-        "select-forecast-attribute" &&
+      "select-forecast-attribute" &&
       event.detail.action === "hold"
     ) {
       event.preventDefault();
@@ -1016,7 +1048,7 @@ export class WfcForecastChart extends LitElement {
         attr === "temperature_and_precipitation"
           ? `${this.hass.formatEntityAttributeName(this.weatherEntity, "temperature")}, ${this.hass.localize("ui.card.weather.attributes.precipitation")}`
           : this.hass.formatEntityAttributeName(this.weatherEntity, attr) ||
-            attr,
+          attr,
       icon:
         attr === "temperature_and_precipitation"
           ? "mdi:water-thermometer"
